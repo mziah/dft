@@ -1,0 +1,11 @@
+{
+        "ServiceName": "topoprocessor",
+        "Host": "",
+        "Port": "8081",
+        "ServiceMapper": "servicemapper",
+        "ServiceMapperPort": "7071",
+        "Replica": 3,
+        "NameSpace": "default",
+        "ClusterDomain": "svc.cluster.local"
+}
+
