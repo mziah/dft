@@ -34,8 +34,7 @@ const (
 )
 
 /**************************************************************************************
-	Meta info for Gatekeeper, Computation, Micro-VNF, Blockchain, NUMA Host Resource Control
-	and other Services (should be in shared folder)
+	Service KB
 ***************************************************************************************/
 
 type ServiceInfo struct {
@@ -93,8 +92,7 @@ var NodeToID map[string]string
 	For MicroVNF
 ***************************************************************************************/
 
-// Topology: used for update -- this is converted to another topology (graph) structure
-// developed earlier for all node shortest weight graph computation
+// Topology: used for update from Forwarder MicroVNF 
 // This is modeled in a way so that incremental updates can be sent
 
 type TopoNode struct {
@@ -136,7 +134,7 @@ var PendingNB map[string][]TopoNeighbor
 //var DeletedNodes map[string]*Topology
 
 /**************************************************************************************
-	TopoProcessor variables, structs
+	Topology Graph Processing variables, structs
 ***************************************************************************************/
 
 // In min weight topology  or minimum spanning tree computation a node is represented
@@ -232,7 +230,6 @@ type NextHopCP struct {
 	Deleted bool
 }
 
-//var NHop2Leaves map[string]*NextHopToLeaf
 // Leaf Name --> Next Hop Name --> Weight
 var NHop2Leaves map[string]map[string]int
 
@@ -269,7 +266,7 @@ type TopoProcessor struct {
 	UTILITY FUNCTIONS (should go in shared folder)
 ***************************************************************************************/
 
-// IP of Container
+// IP address of Container
 // From external source - modify later
 func GetIPv4() (string, error) {
 	ifs, err := net.Interfaces()
@@ -1111,7 +1108,7 @@ func UpdateNeighbor(ni TopoNeighbor) error {
 }
 
 /**************************************************************************************
-	Service related  functions calling RPC functions (should go in shared folder)
+	Service KB related functions called by RPC functions (should go in shared folder)
 ***************************************************************************************/
 
 func GetAllServiceInfoFromExistingGK(sr, pr, ts string) error {
@@ -1148,7 +1145,7 @@ func SendInitTopoRequest(sr, pr string) error {
 	return nil
 }
 
-// A newly launched MWT is initialized from existing MWT
+// A newly launched TopoProcessor is initialized from existing TopoProcessor
 func GetInitTopoFromMWT() {
 
 	pts := TopoStates
@@ -1173,8 +1170,8 @@ func GetInitTopoFromMWT() {
 	}
 }
 
-// This GK service registered to other GK services
-// GK service host, port info, this service info
+// Register this service to ServiceMappers
+// ServiceMapper host, port info, this service info
 func RegisterThisService(h, p string, ts *ServiceInfo) {
 
 	c, err := rpc.Dial("tcp", h+":"+p)
@@ -1265,7 +1262,7 @@ func GetActiveServiceInfo(i time.Duration) {
 	Launch this service
 ***************************************************************************************/
 
-// RPC over TCP (other over HTTP, JSON RPC)
+// RPC over TCP 
 func LaunchService(s, p string) {
 
 	rpc.Register(new(TopoProcessor))
@@ -1297,21 +1294,19 @@ func (s *TopoProcessor) Liveness(req int, reply *string) error {
 
 func (s *TopoProcessor) PingResponse(req int, reply *int) error {
 
-	//*reply = len(InitialTopology)
-	//r := []string{"TNodes", strconv.Itoa(NUMNODES), "TEdges", strconv.Itoa(NUMEDGES)}
 	*reply = NUMNODES + NUMEDGES
 	return nil
 }
 
-// req IP address
+// req: Name of requester
 // Min weight graph (topology) rooted at source (v.Idx) in DOT notation is returned
 func (s *TopoProcessor) GetMinWeightTopologyinDOT(req string, reply *string) error {
 
 	fmt.Printf("%s requests Min Weight Topology in DOT\n", req)
 
-	// Graph has to initilized every time as each request may have different source or root
+	// Graph has to be initilized every time as each request may have different source or root
 	// Min weight graph is different for different source
-	// Min Weight Graph can be cached (***** ADD CACHING LATER *****)
+	// Min Weight Graph can be cached
 	gr := initGraph()
 	if gr == nil {
 		return errors.New("TopoProcessor: Graph size 0 or 2 nodes with no edges")
@@ -1566,10 +1561,7 @@ func getServiceInfoAndRegister(ts ServiceInfo) {
 
 	//time.Sleep(time.Second * 180)
 
-	//for k := 0; k < 5; k++ {
-
 	for i := 0; i < rp; i++ {
-		//hh := nm + "-" + strconv.Itoa(i) + "." + nm + "." + ns + ".svc.cluster.local"
 		hh := nm + "-" + strconv.Itoa(i) + "." + nm + "." + ns + "." + cd
 		fmt.Println(hh)
 
@@ -1599,49 +1591,6 @@ func getServiceInfoAndRegister(ts ServiceInfo) {
 			}
 		}
 	}
-}
-
-func getServiceInfoAndRegister1(ts ServiceInfo) {
-
-	gi := []string{}
-	rp := ts.Replica
-	nm := ts.ServiceMapper
-	ns := ts.NameSpace
-	cd := ts.ClusterDomain
-	gp := ts.ServiceMapperPort
-
-	for i := 0; i < rp; i++ {
-		hh := nm + "-" + strconv.Itoa(i) + "." + nm + "." + ns + "." + cd
-
-		fmt.Println(hh)
-
-		gi = append(gi, hh)
-	}
-
-	for j := range gi {
-		e := GetAllServiceInfoFromExistingGK(gi[j], gp, ThisNodeIP)
-		// Get from one; Later ADD: Get from one having most info
-		// That is ServiceKnowledge highest
-		if e == nil {
-			break
-		} else {
-			fmt.Println(e)
-		}
-	}
-
-	if ServiceMap != nil {
-		v := ServiceMap["ServiceMapper"]
-		if v != nil {
-			for i := range v {
-				//if v[i].ServiceStatus == 2 { // Service Mapper is up
-				fmt.Printf("Registering %s %s with %s %s\n", ThisNodeName, ts.ServiceIP, v[i].ServiceInstance, v[i].ServiceIP)
-				RegisterThisService(v[i].ServiceIP, v[i].ServicePort, &ts)
-				//}
-			}
-		}
-	}
-
-	GetInitTopoFromMWT()
 }
 
 func main() {
